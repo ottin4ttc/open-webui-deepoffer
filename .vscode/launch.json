@@ -1,0 +1,24 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "启动开发服务器",
+        "type": "debugpy",
+        "request": "launch",
+        "module": "uvicorn",
+        "args": [
+          "open_webui.main:app",
+          "--port", "8080",
+          "--host", "0.0.0.0",
+          "--forwarded-allow-ips", "*",
+          "--reload"
+        ],
+        "justMyCode": true,
+        "env": {
+          "PORT": "8080"
+        },
+        "python": "${command:python.interpreterPath}",
+        "cwd": "${workspaceFolder}/backend"
+      }
+    ]
+  }

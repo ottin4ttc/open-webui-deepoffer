@@ -6,7 +6,7 @@
 	import { page } from '$app/stores';
 
 	import { getBackendConfig } from '$lib/apis';
-	import { ldapUserSignIn, getSessionUser, userSignIn, userSignUp } from '$lib/apis/auths';
+	import { ldapUserSignIn, getSessionUser, userSignIn, userSignUp, smsVerifyCode, smsLogin } from '$lib/apis/auths';
 
 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 	import { WEBUI_NAME, config, user, socket } from '$lib/stores';
@@ -20,13 +20,73 @@
 
 	let loaded = false;
 
-	let mode = $config?.features.enable_ldap ? 'ldap' : 'signin';
+	let mode = $config?.features.enable_ldap ? 'ldap' : 'sms';
 
 	let name = '';
 	let email = '';
 	let password = '';
-
+	let phone = '';
+	let code = '';
 	let ldapUsername = '';
+
+	let codeSending = false;
+	let codeButtonDisabled = false;
+	let countdownSeconds = 0;
+	let countdownInterval;
+
+	// 手机号格式验证 - 仅适用于中国大陆手机号（86）
+	const validatePhoneFormat = (phone) => {
+		// 手机号格式：1开头的11位数字（中国大陆手机号）
+		const regex = /^1[3-9]\d{9}$/;
+		return regex.test(phone);
+	};
+
+	const sendVerifyCode = async () => {
+		if (!validatePhoneFormat(phone)) {
+			toast.error($i18n.t('请输入正确的手机号码（国内11位手机号）'));
+			return;
+		}
+
+		codeSending = true;
+		try {
+			const res = await smsVerifyCode(phone);
+			if (res && res.success) {
+				toast.success($i18n.t('验证码已发送'));
+				countdownSeconds = 60;
+				codeButtonDisabled = true;
+				countdownInterval = setInterval(() => {
+					countdownSeconds--;
+					if (countdownSeconds <= 0) {
+						clearInterval(countdownInterval);
+						codeButtonDisabled = false;
+					}
+				}, 1000);
+			}
+		} catch (error) {
+			toast.error(`${error}`);
+		} finally {
+			codeSending = false;
+		}
+	};
+
+	const smsLoginHandler = async () => {
+		if (!validatePhoneFormat(phone)) {
+			toast.error($i18n.t('请输入正确的手机号码（国内11位手机号）'));
+			return;
+		}
+
+		if (!code) {
+			toast.error($i18n.t('请输入验证码'));
+			return;
+		}
+
+		const sessionUser = await smsLogin(phone, code, name).catch((error) => {
+			toast.error(`${error}`);
+			return null;
+		});
+
+		await setSessionUser(sessionUser);
+	};
 
 	const querystringValue = (key) => {
 		const querystring = window.location.search;
@@ -83,8 +143,10 @@
 			await ldapSignInHandler();
 		} else if (mode === 'signin') {
 			await signInHandler();
-		} else {
+		} else if (mode === 'signup') {
 			await signUpHandler();
+		} else if (mode === 'sms') {
+			await smsLoginHandler();
 		}
 	};
 
@@ -127,11 +189,11 @@
 
 				darkImage.onload = () => {
 					logo.src = '/static/favicon-dark.png';
-					logo.style.filter = ''; // Ensure no inversion is applied if favicon-dark.png exists
+					logo.style.filter = '';
 				};
 
 				darkImage.onerror = () => {
-					logo.style.filter = 'invert(1)'; // Invert image if favicon-dark.png is missing
+					logo.style.filter = 'invert(1)';
 				};
 			}
 		}
@@ -152,6 +214,12 @@
 		} else {
 			onboarding = $config?.onboarding ?? false;
 		}
+		
+		return () => {
+			if (countdownInterval) {
+				clearInterval(countdownInterval);
+			}
+		};
 	});
 </script>
 
@@ -165,7 +233,7 @@
 	bind:show={onboarding}
 	getStartedHandler={() => {
 		onboarding = false;
-		mode = $config?.features.enable_ldap ? 'ldap' : 'signup';
+		mode = 'sms';
 	}}
 />
 
@@ -222,6 +290,8 @@
 										{$i18n.t(`Get started with {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 									{:else if mode === 'ldap'}
 										{$i18n.t(`Sign in to {{WEBUI_NAME}} with LDAP`, { WEBUI_NAME: $WEBUI_NAME })}
+									{:else if mode === 'sms'}
+										{$i18n.t(`Sign in to {{WEBUI_NAME}} with SMS`, { WEBUI_NAME: $WEBUI_NAME })}
 									{:else if mode === 'signin'}
 										{$i18n.t(`Sign in to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 									{:else}
@@ -239,7 +309,64 @@
 								{/if}
 							</div>
 
-							{#if $config?.features.enable_login_form || $config?.features.enable_ldap}
+							{#if mode === 'sms'}
+								<div class="flex flex-col mt-4">
+									<div class="mb-2">
+										<div class="text-sm font-medium text-left mb-1">{$i18n.t('手机号')}</div>
+										<input
+											bind:value={phone}
+											type="tel"
+											class="my-0.5 w-full text-sm outline-hidden bg-transparent"
+											autocomplete="tel"
+											name="phone"
+											placeholder={$i18n.t('请输入国内11位手机号')}
+											required
+										/>
+									</div>
+
+									<div class="mb-2">
+										<div class="text-sm font-medium text-left mb-1">{$i18n.t('验证码')}</div>
+										<div class="flex">
+											<input
+												bind:value={code}
+												type="text"
+												class="my-0.5 w-full text-sm outline-hidden bg-transparent"
+												autocomplete="one-time-code"
+												name="verification-code"
+												placeholder={$i18n.t('请输入验证码')}
+												required
+											/>
+											<button
+												type="button"
+												class="ml-2 px-3 py-1 text-sm rounded-full bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 disabled:opacity-50 disabled:cursor-not-allowed"
+												on:click={sendVerifyCode}
+												disabled={codeButtonDisabled || codeSending}
+											>
+												{#if codeSending}
+													{$i18n.t('发送中...')}
+												{:else if countdownSeconds > 0}
+													{countdownSeconds}s
+												{:else}
+													{$i18n.t('获取验证码')}
+												{/if}
+											</button>
+										</div>
+									</div>
+
+									{#if $config?.onboarding ?? false}
+										<div class="mb-2">
+											<div class="text-sm font-medium text-left mb-1">{$i18n.t('姓名')}</div>
+											<input
+												bind:value={name}
+												type="text"
+												class="my-0.5 w-full text-sm outline-hidden bg-transparent"
+												autocomplete="name"
+												placeholder={$i18n.t('请输入您的姓名')}
+											/>
+										</div>
+									{/if}
+								</div>
+							{:else if $config?.features.enable_login_form || $config?.features.enable_ldap}
 								<div class="flex flex-col mt-4">
 									{#if mode === 'signup'}
 										<div class="mb-2">
@@ -310,7 +437,14 @@
 								</div>
 							{/if}
 							<div class="mt-5">
-								{#if $config?.features.enable_login_form || $config?.features.enable_ldap}
+								{#if mode === 'sms'}
+									<button
+										class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-medium text-sm py-2.5"
+										type="submit"
+									>
+										{$i18n.t('登录/注册')}
+									</button>
+								{:else if $config?.features.enable_login_form || $config?.features.enable_ldap}
 									{#if mode === 'ldap'}
 										<button
 											class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-medium text-sm py-2.5"
@@ -359,7 +493,7 @@
 						{#if Object.keys($config?.oauth?.providers ?? {}).length > 0}
 							<div class="inline-flex items-center justify-center w-full">
 								<hr class="w-32 h-px my-4 border-0 dark:bg-gray-100/10 bg-gray-700/10" />
-								{#if $config?.features.enable_login_form || $config?.features.enable_ldap}
+								{#if (mode === 'sms') || $config?.features.enable_login_form || $config?.features.enable_ldap}
 									<span
 										class="px-3 text-sm font-medium text-gray-900 dark:text-white bg-transparent"
 										>{$i18n.t('or')}</span
@@ -467,21 +601,26 @@
 							</div>
 						{/if}
 
-						{#if $config?.features.enable_ldap && $config?.features.enable_login_form}
+						{#if ($config?.features.enable_sms && (mode !== 'sms')) || ($config?.features.enable_ldap && $config?.features.enable_login_form)}
 							<div class="mt-2">
 								<button
 									class="flex justify-center items-center text-xs w-full text-center underline"
 									type="button"
 									on:click={() => {
 										if (mode === 'ldap')
-											mode = ($config?.onboarding ?? false) ? 'signup' : 'signin';
-										else mode = 'ldap';
+											mode = ($config?.onboarding ?? false) ? 'signup' : 'sms';
+										else if (mode === 'sms')
+											mode = 'ldap';
+										else 
+											mode = 'sms';
 									}}
 								>
 									<span
 										>{mode === 'ldap'
-											? $i18n.t('Continue with Email')
-											: $i18n.t('Continue with LDAP')}</span
+											? $i18n.t('Continue with SMS')
+											: mode === 'sms'
+												? $i18n.t('Continue with LDAP')
+												: $i18n.t('Continue with SMS')}</span
 									>
 								</button>
 							</div>

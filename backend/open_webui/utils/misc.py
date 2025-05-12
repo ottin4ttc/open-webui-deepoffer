@@ -7,10 +7,15 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Callable, Optional
 import json
-
+import datetime
+import unicodedata
+import os
+import xml.etree.ElementTree as ET
+import secrets
+import string
 
 import collections.abc
-from open_webui.env import SRC_LOG_LEVELS
+from open_webui.env import SRC_LOG_LEVELS, WEBUI_AUTH
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MAIN"])
@@ -277,11 +282,28 @@ def calculate_sha256_string(string):
     return hashed_string
 
 
-def validate_email_format(email: str) -> bool:
+def validate_email_format(email):
     if email.endswith("@localhost"):
         return True
+    
+    email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+    return re.match(email_regex, email) is not None
 
-    return bool(re.match(r"[^@]+@[^@]+\.[^@]+", email))
+
+def validate_phone_format(phone):
+    """
+    验证手机号格式
+    支持中国大陆手机号（11位数字，以1开头）和国际手机号格式
+    """
+    # 基本的中国大陆手机号验证：11位数字，以1开头
+    cn_phone_regex = r"^1[3-9]\d{9}$"
+    if re.match(cn_phone_regex, phone):
+        return True
+    
+    # 国际手机号格式验证：+国家代码 + 号码
+    # 例如：+8613800138000, +12025550179
+    intl_phone_regex = r"^\+\d{1,4}\d{6,14}$"
+    return re.match(intl_phone_regex, phone) is not None
 
 
 def sanitize_filename(file_name):
@@ -321,13 +343,16 @@ def extract_folders_after_data_docs(path):
     return tags
 
 
-def parse_duration(duration: str) -> Optional[timedelta]:
-    if duration == "-1" or duration == "0":
+def parse_duration(duration_str):
+    """
+    Parse a duration string like "1d" or "30m" into a timedelta object.
+    """
+    if not duration_str or duration_str == "-1":
         return None
 
     # Regular expression to find number and unit pairs
     pattern = r"(-?\d+(\.\d+)?)(ms|s|m|h|d|w)"
-    matches = re.findall(pattern, duration)
+    matches = re.findall(pattern, duration_str)
 
     if not matches:
         raise ValueError("Invalid duration string")

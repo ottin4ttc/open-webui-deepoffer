@@ -1,3 +1,4 @@
+import json
 import re
 import uuid
 import time
@@ -17,6 +18,8 @@ from open_webui.models.auths import (
     UpdatePasswordForm,
     UpdateProfileForm,
     UserResponse,
+    SmsVerifyCodeForm,
+    SmsLoginForm,
 )
 from open_webui.models.users import Users
 
@@ -29,13 +32,37 @@ from open_webui.env import (
     WEBUI_AUTH_COOKIE_SECURE,
     WEBUI_AUTH_SIGNOUT_REDIRECT_URL,
     SRC_LOG_LEVELS,
+    ENABLE_SMS,
+    ALIYUN_SMS_ACCESS_KEY_ID,
+    ALIYUN_SMS_ACCESS_KEY_SECRET,
+    ALIYUN_SMS_SIGN_NAME,
+    ALIYUN_SMS_TEMPLATE_CODE,
+    ALIYUN_SMS_REGION_ID,
+    SMS_VERIFICATION_CODE_LENGTH,
+    SMS_VERIFICATION_CODE_EXPIRE_SECONDS,
+    SMS_VERIFICATION_CODE_DAILY_LIMIT,
+    SMS_VERIFICATION_CODE_INTERVAL_SECONDS,
 )
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse, Response
-from open_webui.config import OPENID_PROVIDER_URL, ENABLE_OAUTH_SIGNUP, ENABLE_LDAP
+from open_webui.config import (
+    OPENID_PROVIDER_URL, 
+    ENABLE_OAUTH_SIGNUP, 
+    ENABLE_LDAP,
+    ENABLE_SMS,
+    ALIYUN_SMS_ACCESS_KEY_ID,
+    ALIYUN_SMS_ACCESS_KEY_SECRET,
+    ALIYUN_SMS_SIGN_NAME,
+    ALIYUN_SMS_TEMPLATE_CODE,
+    ALIYUN_SMS_REGION_ID,
+    SMS_VERIFICATION_CODE_LENGTH,
+    SMS_VERIFICATION_CODE_EXPIRE_SECONDS,
+    SMS_VERIFICATION_CODE_DAILY_LIMIT,
+    SMS_VERIFICATION_CODE_INTERVAL_SECONDS,
+)
 from pydantic import BaseModel
 
-from open_webui.utils.misc import parse_duration, validate_email_format
+from open_webui.utils.misc import parse_duration, validate_email_format, validate_phone_format
 from open_webui.utils.auth import (
     decode_token,
     create_api_key,
@@ -48,6 +75,7 @@ from open_webui.utils.auth import (
 )
 from open_webui.utils.webhook import post_webhook
 from open_webui.utils.access_control import get_permissions
+from open_webui.utils.sms import AliyunSmsClient, SmsVerificationCodeStore
 
 from typing import Optional, List
 
@@ -908,3 +936,178 @@ async def get_api_key(user=Depends(get_current_user)):
         }
     else:
         raise HTTPException(404, detail=ERROR_MESSAGES.API_KEY_NOT_FOUND)
+
+
+############################
+# SMS Authentication
+############################
+
+@router.post("/sms/send_code")
+async def send_sms_code(request: Request, form_data: SmsVerifyCodeForm):
+    """发送短信验证码"""
+    # 检查是否启用短信功能
+    if not request.app.state.config.ENABLE_SMS:
+        raise HTTPException(status_code=400, detail="短信验证码功能未启用")
+    
+    # 校验手机号格式
+    phone = form_data.phone
+    if not validate_phone_format(phone):
+        raise HTTPException(status_code=400, detail="手机号格式错误")
+    
+    try:
+        # 获取阿里云SMS配置
+        access_key_id = request.app.state.config.ALIYUN_SMS_ACCESS_KEY_ID
+        access_key_secret = request.app.state.config.ALIYUN_SMS_ACCESS_KEY_SECRET
+        sign_name = request.app.state.config.ALIYUN_SMS_SIGN_NAME
+        template_code = request.app.state.config.ALIYUN_SMS_TEMPLATE_CODE
+        region_id = request.app.state.config.ALIYUN_SMS_REGION_ID
+        
+        # 验证码长度和有效期
+        code_length = request.app.state.config.SMS_VERIFICATION_CODE_LENGTH
+        expire_seconds = request.app.state.config.SMS_VERIFICATION_CODE_EXPIRE_SECONDS
+        daily_limit = request.app.state.config.SMS_VERIFICATION_CODE_DAILY_LIMIT
+        
+        # 检查配置项是否已设置
+        if not (access_key_id and access_key_secret and sign_name and template_code):
+            raise HTTPException(status_code=500, detail="短信服务配置不完整")
+        
+        # 初始化短信客户端和验证码存储
+        sms_client = AliyunSmsClient(
+            access_key_id=access_key_id,
+            access_key_secret=access_key_secret,
+            sign_name=sign_name,
+            template_code=template_code,
+            region_id=region_id
+        )
+        code_store = SmsVerificationCodeStore()
+        
+        # 检查发送频率限制
+        can_send, reason = code_store.can_send_sms(phone, daily_limit)
+        if not can_send:
+            raise HTTPException(status_code=429, detail=reason)
+        
+        # 生成验证码并发送短信
+        code = sms_client.generate_code(code_length)
+        success, message = sms_client.send_sms(phone, {"code": code})
+        
+        if not success:
+            log.error(f"发送短信失败: {message}")
+            raise HTTPException(status_code=500, detail=f"发送短信失败: {message}")
+        
+        # 保存验证码到Redis
+        code_store.save_code(phone, code, expire_seconds)
+        
+        return {"success": True, "message": "验证码已发送"}
+        
+    except Exception as e:
+        log.exception(f"发送短信验证码异常: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"发送验证码失败: {str(e)}")
+
+@router.post("/sms/login", response_model=SessionUserResponse)
+async def sms_login(request: Request, response: Response, form_data: SmsLoginForm):
+    """短信验证码登录"""
+    # 检查是否启用短信功能
+    if not request.app.state.config.ENABLE_SMS:
+        raise HTTPException(status_code=400, detail="短信验证码功能未启用")
+    
+    # 校验手机号格式
+    phone = form_data.phone
+    if not validate_phone_format(phone):
+        raise HTTPException(status_code=400, detail="手机号格式错误")
+    
+    try:
+        # 验证短信验证码
+        code_store = SmsVerificationCodeStore()
+        if not code_store.verify_code(phone, form_data.code):
+            raise HTTPException(status_code=400, detail="验证码错误或已过期")
+        
+        # 查找用户是否已存在
+        user = Auths.authenticate_user_by_phone(phone)
+        user_count = Users.get_num_users()
+        
+        # 用户不存在，创建新用户
+        if not user:
+            name = form_data.name if form_data.name else f"用户{phone[-4:]}"
+            role = "admin" if user_count == 0 else request.app.state.config.DEFAULT_USER_ROLE
+            
+            # 创建新用户
+            user = Auths.insert_new_user_by_phone(
+                phone=phone,
+                name=name,
+                profile_image_url=form_data.profile_image_url,
+                role=role
+            )
+            
+            if not user:
+                raise HTTPException(status_code=500, detail="创建用户失败")
+                
+            # 首位用户即为管理员，关闭注册功能
+            if user_count == 0:
+                request.app.state.config.ENABLE_SIGNUP = False
+        
+        # 生成JWT令牌
+        expires_delta = parse_duration(request.app.state.config.JWT_EXPIRES_IN)
+        expires_at = None
+        if expires_delta:
+            expires_at = int(time.time()) + int(expires_delta.total_seconds())
+            
+        token = create_token(
+            data={"id": user.id},
+            expires_delta=expires_delta,
+        )
+        
+        datetime_expires_at = (
+            datetime.datetime.fromtimestamp(expires_at, datetime.timezone.utc)
+            if expires_at
+            else None
+        )
+        
+        # 设置Cookie
+        response.set_cookie(
+            key="token",
+            value=token,
+            expires=datetime_expires_at,
+            httponly=True,
+            samesite=WEBUI_AUTH_COOKIE_SAME_SITE,
+            secure=WEBUI_AUTH_COOKIE_SECURE,
+        )
+        
+        # 获取用户权限
+        user_permissions = get_permissions(
+            user.id, request.app.state.config.USER_PERMISSIONS
+        )
+        
+        # 更新最后活跃时间
+        Users.update_user_last_active_by_id(user.id)
+        
+        # 发送Webhook通知
+        if request.app.state.config.WEBHOOK_URL:
+            action = "login" if Auths.authenticate_user_by_phone(phone) else "signup"
+            post_webhook(
+                request.app.state.WEBUI_NAME,
+                request.app.state.config.WEBHOOK_URL,
+                WEBHOOK_MESSAGES.USER_SIGNIN(user.name) if action == "login" else WEBHOOK_MESSAGES.USER_SIGNUP(user.name),
+                {
+                    "action": action,
+                    "message": WEBHOOK_MESSAGES.USER_SIGNIN(user.name) if action == "login" else WEBHOOK_MESSAGES.USER_SIGNUP(user.name),
+                    "user": user.model_dump_json(exclude_none=True),
+                },
+            )
+        
+        return {
+            "token": token,
+            "token_type": "Bearer",
+            "expires_at": expires_at,
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+            "profile_image_url": user.profile_image_url,
+            "permissions": user_permissions,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception(f"短信验证码登录异常: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"登录失败: {str(e)}")

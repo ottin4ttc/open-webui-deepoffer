@@ -166,7 +166,7 @@ class PersistentConfig(Generic[T]):
         self.env_value = env_value
         self.config_value = get_config_value(config_path)
         if self.config_value is not None and ENABLE_PERSISTENT_CONFIG:
-            log.info(f"'{env_name}' loaded from the latest database entry")
+            log.info(f"'{env_name}' loaded from the latest database entry: {self.config_value}")
             self.value = self.config_value
         else:
             self.value = env_value
@@ -2841,4 +2841,68 @@ LDAP_CA_CERT_FILE = PersistentConfig(
 
 LDAP_CIPHERS = PersistentConfig(
     "LDAP_CIPHERS", "ldap.server.ciphers", os.environ.get("LDAP_CIPHERS", "ALL")
+)
+
+####################################
+# 阿里云短信服务配置
+####################################
+
+ENABLE_SMS = PersistentConfig(
+    "ENABLE_SMS",
+    "sms.enable",
+    os.environ.get("ENABLE_SMS", "False").lower() == "true",
+)
+
+ALIYUN_SMS_ACCESS_KEY_ID = PersistentConfig(
+    "ALIYUN_SMS_ACCESS_KEY_ID",
+    "sms.aliyun.access_key_id",
+    os.environ.get("ALIYUN_SMS_ACCESS_KEY_ID", ""),
+)
+
+ALIYUN_SMS_ACCESS_KEY_SECRET = PersistentConfig(
+    "ALIYUN_SMS_ACCESS_KEY_SECRET",
+    "sms.aliyun.access_key_secret",
+    os.environ.get("ALIYUN_SMS_ACCESS_KEY_SECRET", ""),
+)
+
+ALIYUN_SMS_SIGN_NAME = PersistentConfig(
+    "ALIYUN_SMS_SIGN_NAME",
+    "sms.aliyun.sign_name",
+    os.environ.get("ALIYUN_SMS_SIGN_NAME", ""),
+)
+
+ALIYUN_SMS_TEMPLATE_CODE = PersistentConfig(
+    "ALIYUN_SMS_TEMPLATE_CODE",
+    "sms.aliyun.template_code",
+    os.environ.get("ALIYUN_SMS_TEMPLATE_CODE", ""),
+)
+
+ALIYUN_SMS_REGION_ID = PersistentConfig(
+    "ALIYUN_SMS_REGION_ID",
+    "sms.aliyun.region_id",
+    os.environ.get("ALIYUN_SMS_REGION_ID", "cn-hangzhou"),
+)
+
+SMS_VERIFICATION_CODE_LENGTH = PersistentConfig(
+    "SMS_VERIFICATION_CODE_LENGTH",
+    "sms.verification_code.length",
+    int(os.environ.get("SMS_VERIFICATION_CODE_LENGTH", "6")),
+)
+
+SMS_VERIFICATION_CODE_EXPIRE_SECONDS = PersistentConfig(
+    "SMS_VERIFICATION_CODE_EXPIRE_SECONDS",
+    "sms.verification_code.expire_seconds",
+    int(os.environ.get("SMS_VERIFICATION_CODE_EXPIRE_SECONDS", "300")),
+)
+
+SMS_VERIFICATION_CODE_DAILY_LIMIT = PersistentConfig(
+    "SMS_VERIFICATION_CODE_DAILY_LIMIT",
+    "sms.verification_code.daily_limit_per_phone",
+    int(os.environ.get("SMS_VERIFICATION_CODE_DAILY_LIMIT", "10")),
+)
+
+SMS_VERIFICATION_CODE_INTERVAL_SECONDS = PersistentConfig(
+    "SMS_VERIFICATION_CODE_INTERVAL_SECONDS",
+    "sms.verification_code.interval_seconds",
+    int(os.environ.get("SMS_VERIFICATION_CODE_INTERVAL_SECONDS", "60")),
 )

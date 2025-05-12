@@ -94,6 +94,19 @@ class AddUserForm(SignupForm):
     role: Optional[str] = "pending"
 
 
+class SmsVerifyCodeForm(BaseModel):
+    """短信验证码发送表单"""
+    phone: str
+
+
+class SmsLoginForm(BaseModel):
+    """短信验证码登录表单"""
+    phone: str
+    code: str
+    name: Optional[str] = ""
+    profile_image_url: Optional[str] = "/user.png"
+
+
 class AuthsTable:
     def insert_new_auth(
         self,
@@ -165,6 +178,54 @@ class AuthsTable:
                     return user
         except Exception:
             return None
+
+    def authenticate_user_by_phone(self, phone: str) -> Optional[UserModel]:
+        """根据手机号验证用户"""
+        log.info(f"authenticate_user_by_phone: {phone}")
+        try:
+            # 直接从Users表中查询手机号对应的用户
+            user = Users.get_user_by_phone(phone)
+            return user
+        except Exception:
+            return None
+
+    def insert_new_user_by_phone(
+        self,
+        phone: str,
+        name: str,
+        profile_image_url: str = "/user.png",
+        role: str = "pending",
+    ) -> Optional[UserModel]:
+        """根据手机号创建新用户（不需要密码，仅使用短信验证）"""
+        with get_db() as db:
+            log.info(f"insert_new_user_by_phone: {phone}")
+
+            id = str(uuid.uuid4())
+            
+            # 生成随机邮箱，确保每个用户邮箱唯一
+            # 格式：手机号@phone.sms.user
+            email = f"{phone}@phone.sms.user"
+            
+            # 创建Auth记录，使用随机密码（因为仅使用短信验证，不需要真实密码）
+            password = str(uuid.uuid4())
+            auth = AuthModel(
+                **{"id": id, "email": email, "password": password, "active": True}
+            )
+            result = Auth(**auth.model_dump())
+            db.add(result)
+
+            # 创建用户记录
+            user = Users.insert_new_user(
+                id, name, email, profile_image_url, role, None, phone
+            )
+
+            db.commit()
+            db.refresh(result)
+
+            if result and user:
+                return user
+            else:
+                return None
 
     def update_user_password_by_id(self, id: str, new_password: str) -> bool:
         try:

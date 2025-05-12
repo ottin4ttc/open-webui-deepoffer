@@ -138,3 +138,7 @@ opentelemetry-instrumentation-requests==0.53b1
 opentelemetry-instrumentation-logging==0.53b1
 opentelemetry-instrumentation-httpx==0.53b1
 opentelemetry-instrumentation-aiohttp-client==0.53b1
+
+## 阿里云短信服务
+aliyun-python-sdk-core>=2.13.0
+aliyun-python-sdk-dysmsapi>=2.1.2

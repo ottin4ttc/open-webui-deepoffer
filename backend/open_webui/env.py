@@ -557,3 +557,41 @@ PIP_PACKAGE_INDEX_OPTIONS = os.getenv("PIP_PACKAGE_INDEX_OPTIONS", "").split()
 ####################################
 
 EXTERNAL_PWA_MANIFEST_URL = os.environ.get("EXTERNAL_PWA_MANIFEST_URL")
+
+####################################
+# LDAP
+####################################
+
+LDAP_SERVER_HOST = os.environ.get("LDAP_SERVER_HOST", "localhost")
+LDAP_SERVER_PORT = int(os.environ.get("LDAP_SERVER_PORT", "389"))
+LDAP_APP_DN = os.environ.get("LDAP_APP_DN", "")
+LDAP_APP_PASSWORD = os.environ.get("LDAP_APP_PASSWORD", "")
+LDAP_SEARCH_BASE = os.environ.get("LDAP_SEARCH_BASE", "")
+LDAP_SEARCH_FILTER = os.environ.get("LDAP_SEARCH_FILTER", "")
+LDAP_SEARCH_FILTERS = os.environ.get("LDAP_SEARCH_FILTERS", LDAP_SEARCH_FILTER)
+LDAP_USE_TLS = os.environ.get("LDAP_USE_TLS", "True").lower() == "true"
+LDAP_CA_CERT_FILE = os.environ.get("LDAP_CA_CERT_FILE", "")
+LDAP_CIPHERS = os.environ.get("LDAP_CIPHERS", "ALL")
+LDAP_SERVER_LABEL = os.environ.get("LDAP_SERVER_LABEL", "LDAP Server")
+LDAP_ATTRIBUTE_FOR_MAIL = os.environ.get("LDAP_ATTRIBUTE_FOR_MAIL", "mail")
+LDAP_ATTRIBUTE_FOR_USERNAME = os.environ.get("LDAP_ATTRIBUTE_FOR_USERNAME", "uid")
+
+####################################
+# 阿里云短信服务
+####################################
+
+ENABLE_SMS = os.environ.get("ENABLE_SMS", "False").lower() == "true"
+ALIYUN_SMS_ACCESS_KEY_ID = os.environ.get("ALIYUN_SMS_ACCESS_KEY_ID", "")
+ALIYUN_SMS_ACCESS_KEY_SECRET = os.environ.get("ALIYUN_SMS_ACCESS_KEY_SECRET", "")
+ALIYUN_SMS_SIGN_NAME = os.environ.get("ALIYUN_SMS_SIGN_NAME", "")
+ALIYUN_SMS_TEMPLATE_CODE = os.environ.get("ALIYUN_SMS_TEMPLATE_CODE", "")
+ALIYUN_SMS_REGION_ID = os.environ.get("ALIYUN_SMS_REGION_ID", "cn-hangzhou")
+
+SMS_VERIFICATION_CODE_LENGTH = int(os.environ.get("SMS_VERIFICATION_CODE_LENGTH", "6"))
+SMS_VERIFICATION_CODE_EXPIRE_SECONDS = int(os.environ.get("SMS_VERIFICATION_CODE_EXPIRE_SECONDS", "300"))
+SMS_VERIFICATION_CODE_DAILY_LIMIT = int(os.environ.get("SMS_VERIFICATION_CODE_DAILY_LIMIT", "10"))
+SMS_VERIFICATION_CODE_INTERVAL_SECONDS = int(os.environ.get("SMS_VERIFICATION_CODE_INTERVAL_SECONDS", "60"))
+
+####################################
+# OpenAI
+####################################

@@ -24,6 +24,7 @@ class User(Base):
     id = Column(String, primary_key=True)
     name = Column(String)
     email = Column(String)
+    phone = Column(String, nullable=True, unique=True)
     role = Column(String)
     profile_image_url = Column(Text)
 
@@ -48,6 +49,7 @@ class UserModel(BaseModel):
     id: str
     name: str
     email: str
+    phone: Optional[str] = None
     role: str = "pending"
     profile_image_url: str
 
@@ -78,6 +80,7 @@ class UserResponse(BaseModel):
     id: str
     name: str
     email: str
+    phone: Optional[str] = None
     role: str
     profile_image_url: str
 
@@ -110,6 +113,7 @@ class UsersTable:
         profile_image_url: str = "/user.png",
         role: str = "pending",
         oauth_sub: Optional[str] = None,
+        phone: Optional[str] = None,
     ) -> Optional[UserModel]:
         with get_db() as db:
             user = UserModel(
@@ -117,6 +121,7 @@ class UsersTable:
                     "id": id,
                     "name": name,
                     "email": email,
+                    "phone": phone,
                     "role": role,
                     "profile_image_url": profile_image_url,
                     "last_active_at": int(time.time()),
@@ -163,6 +168,15 @@ class UsersTable:
             with get_db() as db:
                 user = db.query(User).filter_by(oauth_sub=sub).first()
                 return UserModel.model_validate(user)
+        except Exception:
+            return None
+
+    def get_user_by_phone(self, phone: str) -> Optional[UserModel]:
+        """根据手机号获取用户信息"""
+        try:
+            with get_db() as db:
+                user = db.query(User).filter_by(phone=phone).first()
+                return UserModel.model_validate(user) if user else None
         except Exception:
             return None
 
