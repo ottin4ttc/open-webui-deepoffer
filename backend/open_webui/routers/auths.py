@@ -942,6 +942,8 @@ async def get_api_key(user=Depends(get_current_user)):
 # SMS Authentication
 ############################
 
+code_store = SmsVerificationCodeStore()
+
 @router.post("/sms/send_code")
 async def send_sms_code(request: Request, form_data: SmsVerifyCodeForm):
     """发送短信验证码"""
@@ -979,7 +981,6 @@ async def send_sms_code(request: Request, form_data: SmsVerifyCodeForm):
             template_code=template_code,
             region_id=region_id
         )
-        code_store = SmsVerificationCodeStore()
         
         # 检查发送频率限制
         can_send, reason = code_store.can_send_sms(phone, daily_limit)
@@ -1017,7 +1018,6 @@ async def sms_login(request: Request, response: Response, form_data: SmsLoginFor
     
     try:
         # 验证短信验证码
-        code_store = SmsVerificationCodeStore()
         if not code_store.verify_code(phone, form_data.code):
             raise HTTPException(status_code=400, detail="验证码错误或已过期")
         

@@ -3,7 +3,6 @@
 """
 import random
 import logging
-import time
 import json
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple
@@ -24,15 +23,9 @@ class SmsVerificationCodeStore:
     """
     def __init__(self):
         """初始化Redis连接"""
-        try:
-            sentinel_hosts = get_sentinels_from_env(REDIS_SENTINEL_HOSTS, REDIS_SENTINEL_PORT)
-            self.redis = get_redis_connection(REDIS_URL, sentinel_hosts)
-            self._is_test_mode = False
-        except Exception as e:
-            # 如果Redis连接失败，可能是在测试环境中运行，使用内存字典存储
-            log.warning(f"无法连接Redis: {str(e)}，使用内存字典替代")
-            self.redis = {}
-            self._is_test_mode = True
+        sentinel_hosts = get_sentinels_from_env(REDIS_SENTINEL_HOSTS, REDIS_SENTINEL_PORT)
+        self.redis = get_redis_connection(REDIS_URL, sentinel_hosts)
+        # 如果Redis连接失败，会直接抛出异常
     
     def _get_code_key(self, phone_number: str) -> str:
         """
@@ -84,18 +77,6 @@ class SmsVerificationCodeStore:
             是否保存成功
         """
         try:
-            if self._is_test_mode:
-                # 测试模式下使用内存字典存储
-                code_key = self._get_code_key(phone_number)
-                interval_key = self._get_interval_key(phone_number)
-                count_key = self._get_count_key(phone_number)
-                
-                self.redis[code_key] = code
-                self.redis[interval_key] = '1'
-                self.redis[count_key] = self.redis.get(count_key, 0) + 1
-                return True
-            
-            # 正常模式下使用Redis存储
             # 保存验证码
             code_key = self._get_code_key(phone_number)
             self.redis.set(code_key, code, ex=expire_seconds)
@@ -119,7 +100,7 @@ class SmsVerificationCodeStore:
             return True
         except Exception as e:
             log.error(f"Error saving code to Redis: {str(e)}")
-            return False
+            raise e
     
     def verify_code(self, phone_number: str, code: str) -> bool:
         """
@@ -134,18 +115,6 @@ class SmsVerificationCodeStore:
         """
         try:
             code_key = self._get_code_key(phone_number)
-            
-            if self._is_test_mode:
-                # 测试模式下从内存字典获取
-                stored_code = self.redis.get(code_key)
-                
-                if stored_code and stored_code == code:
-                    # 验证成功后删除验证码
-                    self.redis.pop(code_key, None)
-                    return True
-                return False
-            
-            # 正常模式使用Redis
             stored_code = self.redis.get(code_key)
             
             if stored_code and stored_code == code:
@@ -155,7 +124,7 @@ class SmsVerificationCodeStore:
             return False
         except Exception as e:
             log.error(f"Error verifying code: {str(e)}")
-            return False
+            raise e
     
     def can_send_sms(self, phone_number: str, daily_limit: int) -> Tuple[bool, str]:
         """
@@ -172,17 +141,6 @@ class SmsVerificationCodeStore:
             interval_key = self._get_interval_key(phone_number)
             count_key = self._get_count_key(phone_number)
             
-            if self._is_test_mode:
-                # 测试模式下从内存字典检查
-                if interval_key in self.redis:
-                    return False, "短信发送过于频繁，请稍后再试"
-                
-                count = self.redis.get(count_key, 0)
-                if count >= daily_limit:
-                    return False, f"已达到每日短信发送限制({daily_limit}条)"
-                
-                return True, "可以发送短信"
-            
             # 检查发送间隔
             if self.redis.exists(interval_key):
                 return False, "短信发送过于频繁，请稍后再试"
@@ -196,7 +154,7 @@ class SmsVerificationCodeStore:
             return True, "可以发送短信"
         except Exception as e:
             log.error(f"Error checking SMS send limit: {str(e)}")
-            return False, f"系统错误: {str(e)}"
+            raise e
 
 class AliyunSmsClient:
     """

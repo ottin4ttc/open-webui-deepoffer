@@ -732,7 +732,6 @@ export const smsLogin = async (phone: string, code: string, name: string = '', p
 		headers: {
 			'Content-Type': 'application/json'
 		},
-		credentials: 'include',
 		body: JSON.stringify({
 			phone: phone,
 			code: code,
