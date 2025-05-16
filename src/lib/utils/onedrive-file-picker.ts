@@ -38,7 +38,6 @@ class OneDriveConfig {
 
 		const response = await fetch('/api/config', {
 			headers,
-			credentials: 'include'
 		});
 
 		if (!response.ok) {
