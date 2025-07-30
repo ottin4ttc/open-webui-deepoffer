@@ -1,0 +1,36 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "backend",
+        "type": "debugpy",
+        "request": "launch",
+        "module": "uvicorn",
+        "args": [
+          "open_webui.main:app",
+          "--port", "8080",
+          "--host", "0.0.0.0",
+          "--forwarded-allow-ips", "*",
+          "--reload"
+        ],
+        "justMyCode": true,
+        "env": {
+          "PORT": "8080",
+          "ENABLE_SMS": "true",
+          "ALIYUN_SMS_ACCESS_KEY_ID": "YOUR_ACCESS_KEY_ID",
+          "ALIYUN_SMS_ACCESS_KEY_SECRET": "YOUR_ACCESS_KEY_SECRET",
+          "ALIYUN_SMS_SIGN_NAME": "YOUR_SIGN_NAME",
+          "ALIYUN_SMS_TEMPLATE_CODE": "YOUR_TEMPLATE_CODE",
+          "ALIYUN_SMS_REGION_ID": "YOUR_REGION_ID",
+          "SMS_VERIFICATION_CODE_LENGTH": "6",
+          "SMS_VERIFICATION_CODE_EXPIRE_SECONDS": "300",
+          "SMS_VERIFICATION_CODE_DAILY_LIMIT": "10",
+          "SMS_VERIFICATION_CODE_INTERVAL_SECONDS": "60",
+          "WEBUI_SECRET_KEY": "YOUR_WEBUI_SECRET_KEY",
+          "REDIS_URL": "redis://127.0.0.1:6379/0"
+        },
+        "python": "${command:python.interpreterPath}",
+        "cwd": "${workspaceFolder}/backend"
+      }
+    ]
+  }

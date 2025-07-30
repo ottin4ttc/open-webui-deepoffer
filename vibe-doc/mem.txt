@@ -1,0 +1,19 @@
+域名：
+deepoffer.ttcsmart.com
+
+服务器：
+root@47.110.152.114
+
+目录：
+/root/deepoffer
+
+Nginx+redis
+
+
+部署方式：
+在macos下通过构建镜像
+docker build --platform=linux/amd64 -t deepoffer-webui:2.0 . 
+docker save/load
+然后在服务器上docker compose up -d
+
+本地可以通过vscode debug拉起后端, 然后通过npm run dev拉起前端调试
