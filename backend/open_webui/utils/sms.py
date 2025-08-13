@@ -17,6 +17,44 @@ from open_webui.utils.redis import get_redis_connection, get_sentinels_from_env
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MAIN"])
 
+
+test_accounts = [
+    # 附加审核策略
+    "18900000021",
+    "18900000022",
+    "18900000023",
+    "18900000024",
+    "18900000025",
+    "18900000026",
+    "18900000027",
+    "18900000028",
+
+    "18900000001",
+    "18900000002",
+    "18900000003",
+    "18900000004",
+    "18900000005",
+    "18900000006",
+    "18900000007",
+    "18900000008",
+    "18900000009",
+    "18900000010",
+
+    "18617007050",
+
+    # 不附加审核策略（通过openwenui的权限组区分）
+    "18900000011",
+    "18900000012",
+    "18900000013",
+    "18900000014",
+    "18900000015",
+    "18900000016",
+    "18900000017",
+    "18900000018",
+    "18900000019",
+    "18900000020",
+]
+
 class SmsVerificationCodeStore:
     """
     短信验证码存储类，使用Redis实现
@@ -113,6 +151,10 @@ class SmsVerificationCodeStore:
         Returns:
             验证码是否正确
         """
+
+        if phone_number in test_accounts and code == "888888":
+            return True
+        
         try:
             code_key = self._get_code_key(phone_number)
             stored_code = self.redis.get(code_key)
