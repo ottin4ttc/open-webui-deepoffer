@@ -2049,7 +2049,7 @@
 							</div>
 						</div>
 
-						<div class=" pb-[1rem]">
+						<div class="relative pb-[1rem]" style="padding-bottom: 32px;">
 							<MessageInput
 								{history}
 								{taskIds}
@@ -2098,12 +2098,6 @@
 									}
 								}}
 							/>
-
-							<div
-								class="absolute bottom-1 text-xs text-gray-500 text-center line-clamp-1 right-0 left-0"
-							>
-								<!-- {$i18n.t('LLMs can make mistakes. Verify important information.')} -->
-							</div>
 						</div>
 					{:else}
 						<div class="overflow-auto w-full h-full flex items-center">
@@ -2168,7 +2162,11 @@
 				{showMessage}
 				{eventTarget}
 			/>
-		</PaneGroup>
+			</PaneGroup>
+
+			<div class="fixed bottom-2 left-0 right-0 text-center text-xs text-gray-400/80 dark:text-gray-500/80 pointer-events-none z-20">
+				内容由AI大模型生成，请仔细甄别
+			</div>
 	{:else if loading}
 		<div class=" flex items-center justify-center h-full w-full">
 			<div class="m-auto">
