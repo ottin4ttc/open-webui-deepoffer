@@ -1,0 +1,14 @@
+services:
+  deepoffer-proxy:
+    build: .
+    container_name: deepoffer-proxy
+    environment:
+      DEEPOFFER_CHAT_COMPLETIONS_URL: ${DEEPOFFER_CHAT_COMPLETIONS_URL:-https://int.ttcadvisory.com/api/llm/deepoffer/v1/chat/completions}
+      DEEPOFFER_API_KEY: ${DEEPOFFER_API_KEY:-}
+      DEEPOFFER_OPENAI_MODEL: ${DEEPOFFER_OPENAI_MODEL:-deepoffer-r1}
+      DEEPOFFER_UPSTREAM_MODEL: ${DEEPOFFER_UPSTREAM_MODEL:-deepoffer-r1-32b-202503}
+      STREAM_FLUSH_CHARS: ${STREAM_FLUSH_CHARS:-12}
+      STREAM_FLUSH_SECONDS: ${STREAM_FLUSH_SECONDS:-0.08}
+    ports:
+      - "8301:8301"
+    restart: unless-stopped
